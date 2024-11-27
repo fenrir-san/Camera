@@ -127,59 +127,6 @@ function Camera:update(dt)
   self.transform:translate(-self.wx, -self.wy)
 end
 
-function Camera:basicUpdate(delta)
-  return delta
-end
-
-function Camera:lerp(a, b, c, dt)
-  dt = dt or 0.01
-  return a + (b - a) * c * dt
-end
-
-function Camera:expDecay(a, b, c, dt)
-  dt = dt or 1
-  return a + (b - a) * (1 - math.exp(-c * dt))
-end
-
-function Camera:underDampedSpring(delta, stiffness, damping, velocity, dt)
-  dt = dt or 1
-  local force = stiffness * delta
-  local d = damping * velocity
-  velocity = velocity + ((force - d) / self.mass) * dt
-  return velocity * dt, velocity
-end
-
-function Camera:smoothDamp(current, target, velocity, smoothTime, maxSpeed, deltaTime)
-  smoothTime = math.max(0.0001, smoothTime)
-  local omega = 2.0 / smoothTime
-
-  local x = omega * deltaTime
-  local exp = 1.0 / (1.0 + x + 0.48 * x ^ 2 + 0.235 * x ^ 3)
-
-  local change = current - target
-  local originalTo = target
-
-  local maxChange = maxSpeed * smoothTime
-  change = math.max(-maxChange, math.min(change, maxChange))
-
-  target = current - change
-
-  local temp = (velocity + omega * change) * deltaTime
-  velocity = (velocity - omega * temp) * exp
-
-  local output = target + (change + temp) * exp
-
-  if (originalTo - current > 0) == (output > originalTo) then
-    output = originalTo
-    velocity = (output - originalTo) / deltaTime
-  end
-
-  return output, velocity
-end
-
-function Camera:calculateStep()
-end
-
 ---@param mode StepMode
 function Camera:setStepMode(mode)
   self.step_mode = mode
