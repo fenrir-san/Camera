@@ -65,8 +65,8 @@ function Camera:new()
 
   o.step_mode = StepMode.UNDER_DAMPED_SPRING
   o.step_method = {
-    [StepMode.STICKY] = function(delta)
-      return delta
+    [StepMode.STICKY] = function(delta, velocity, dt)
+      return delta, velocity
     end,
     [StepMode.LERP] = function(delta, velocity, dt)
       return utils.lerp(0, delta, o.damping, dt), velocity
