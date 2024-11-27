@@ -45,7 +45,7 @@ function love.update(dt)
 end
 
 function love.draw()
-  camera:set()
+  camera:setTransform()
   love.graphics.rectangle("fill", player.x, player.y, 30, 30)
   love.graphics.rectangle(
     "line",
@@ -54,5 +54,5 @@ function love.draw()
     love.graphics.getPixelWidth(),
     love.graphics.getPixelHeight()
   )
-  camera:unset()
+  camera:unsetTransform()
 end
