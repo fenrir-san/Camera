@@ -1,7 +1,8 @@
 local love = require("love")
+local utils = require("camera.utils")
 
 ---@enum StepMode
-local StepMode = {
+StepMode = {
   STICKY = 1,
   LERP = 2,
   EXP_DECAY = 3,
@@ -21,11 +22,14 @@ local StepMode = {
 ---@field bounds table
 ---@field threshold number
 ---@field step_mode StepMode
+---@field step_method table
 ---@field rotation number
 ---@field velocity_x number
 ---@field velocity_y number
 ---@field stiffness number
 ---@field mass number
+---@field smoothTime number
+---@field maxSpeed number
 ---@field damping number
 local Camera = {}
 Camera.__index = Camera
@@ -48,13 +52,39 @@ function Camera:new()
   }
   o.target = nil
   o.transform = love.math.newTransform()
-  o.step_mode = StepMode.LERP
+
   o.damping = 2
   o.threshold = 0.001
-  o.velocity_x = 0
-  o.velocity_y = 0
   o.stiffness = 20
   o.mass = 1
+  o.smoothTime = 0.3
+  o.maxSpeed = 75
+
+  o.velocity_x = 0
+  o.velocity_y = 0
+
+  o.step_mode = StepMode.UNDER_DAMPED_SPRING
+  o.step_method = {
+    [StepMode.STICKY] = function(delta)
+      return delta
+    end,
+    [StepMode.LERP] = function(delta, velocity, dt)
+      return utils.lerp(0, delta, o.damping, dt), velocity
+    end,
+    [StepMode.EXP_DECAY] = function(delta, velocity, dt)
+      return utils.expDecay(0, delta, o.damping, dt), velocity
+    end,
+    [StepMode.UNDER_DAMPED_SPRING] = function(delta, velocity, dt)
+      return utils.underDampedSpring(delta, o.mass, o.stiffness, o.damping, velocity, dt)
+    end,
+    [StepMode.CRITICAL_DAMPED_SPRING] = function(delta, velocity, dt)
+      local damping = 2 * math.sqrt(o.stiffness * o.mass)
+      return utils.underDampedSpring(delta, o.mass, o.stiffness, damping, velocity, dt)
+    end,
+    [StepMode.SMOOTH_DAMP] = function(delta, velocity, dt)
+      return utils.smoothDamp(0, delta, velocity, o.smoothTime, o.maxSpeed, dt)
+    end
+  }
   return o
 end
 
@@ -71,9 +101,8 @@ function Camera:update(dt)
   local delta_y = target_y - self.height / 2
 
   local x_step, y_step
-
-  x_step, self.velocity_x = self:smoothDamp(0, delta_x, self.velocity_x, 0.3, 75, dt)
-  y_step, self.velocity_y = self:smoothDamp(0, delta_y, self.velocity_y, 0.3, 75, dt)
+  x_step, self.velocity_x = self.step_method[self.step_mode](delta_x, self.velocity_x, dt)
+  y_step, self.velocity_y = self.step_method[self.step_mode](delta_y, self.velocity_y, dt)
 
   if math.abs(delta_x) < self.threshold then
     x_step = delta_x
@@ -98,12 +127,12 @@ function Camera:update(dt)
   self.transform:translate(-self.wx, -self.wy)
 end
 
-function Camera:basicUpdate(target, center)
-  return target - center
+function Camera:basicUpdate(delta)
+  return delta
 end
 
 function Camera:lerp(a, b, c, dt)
-  dt = dt or 1
+  dt = dt or 0.01
   return a + (b - a) * c * dt
 end
 
@@ -112,11 +141,11 @@ function Camera:expDecay(a, b, c, dt)
   return a + (b - a) * (1 - math.exp(-c * dt))
 end
 
-function Camera:underDampedSpring(delta, velocity, dt)
+function Camera:underDampedSpring(delta, stiffness, damping, velocity, dt)
   dt = dt or 1
-  local force = self.stiffness * delta
-  local damping = self.damping * velocity
-  velocity = velocity + ((force - damping) / self.mass) * dt
+  local force = stiffness * delta
+  local d = damping * velocity
+  velocity = velocity + ((force - d) / self.mass) * dt
   return velocity * dt, velocity
 end
 
@@ -159,6 +188,15 @@ end
 ---@return StepMode
 function Camera:getStepMode()
   return self.step_mode
+end
+
+function Camera:setStepParams(damping, threshold, stiffness, mass, smoothTime, maxSpeed)
+  self.damping = damping
+  self.threshold = threshold
+  self.stiffness = stiffness
+  self.mass = mass
+  self.smoothTime = smoothTime
+  self.maxSpeed = maxSpeed
 end
 
 function Camera:fromWorldToCamera(x, y)
